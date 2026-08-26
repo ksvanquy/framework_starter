@@ -3,7 +3,6 @@ build-qt/
 
 # Generated test and analysis output
 Testing/
-package-test/
 compile_commands.json
 
 # Local logs
