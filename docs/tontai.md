@@ -1,32 +1,65 @@
+Runtime Service Injection
 
-```bash
-cat << 'EOF' > architecture_spec.md
-## 1. Mở rộng `IConfig` (Write & Persistence Contract)
 
-*   **Write API**: Bổ sung các phương thức thiết lập dữ liệu theo kiểu dữ liệu nguyên thủy (`string`, `int`, `bool`, `double`).
-*   **Persistence Lifecycle**: Tích hợp các phương thức chuẩn hóa như `save()` hoặc `flush()` vào contract để quản lý việc đồng bộ dữ liệu cấu hình từ bộ nhớ đệm xuống tầng lưu trữ vật lý. 
-*   **Notification Mechanism**: Hỗ trợ cơ chế thông báo sự kiện (**event notification**) khi cấu hình thay đổi để các thành phần liên quan kịp thời cập nhật.
+Runtime nên trở thành một runtime thuần orchestration, không tự tạo service implementation. Composition root cung cấp toàn bộ services.
 
----
 
-## 2. Trừu tượng hóa và Inject `IStorage` (Persistence Support)
+IConfig cần chuyển từ read-only abstraction → read/write abstraction; còn persistence là trách nhiệm của implementation/storage, không hard-code vào IConfig.
 
-*   **Decoupling Interface & Implementation**: Giữ nguyên core contract `IStorage` (key-value cơ bản) và tách rời hoàn toàn khỏi các implementation trên RAM (`InMemoryStorage`). 
-*   **Persistent Providers**: Cung cấp các hiện thực mẫu dựa trên file hoặc cơ sở dữ liệu nhúng có khả năng tự động nạp dữ liệu (`load`) khi khởi động và ghi nhận khi thay đổi. 
-*   **External Injection**: Cho phép application đăng ký hoặc tiêm (`inject`) custom storage implementation vào vòng đời khởi tạo của runtime thông qua `RuntimeBuilder` hoặc `Context`. 
 
----
+Tóm lại: giữ IStorage generic, giữ InMemoryStorage, thêm implementation persistent và cho application chọn implementation.
 
-## 3. Thiết kế Mở rộng `IDiagnostics` (Extensible Diagnostics Model)
+Tóm lại :
 
-*   **Standard Operational Metrics**: Mở rộng `DiagnosticSnapshot` để bao gồm các chỉ số vận hành tiêu chuẩn: trạng thái các thành phần (runtime, module, plugin), bộ đếm số lượng, trạng thái bộ lập lịch (`Scheduler`), và danh sách lỗi/cảnh báo gần nhất (`recent_errors`, `recent_warnings`). 
-*   **Provider Pattern**: Xây dựng cơ chế đăng ký linh hoạt (`IDiagnosticProvider`) cho phép các module/plugin tự động đóng góp các metric tùy chỉnh vào snapshot chung mà không làm ô nhiễm tầng core framework bằng các thuật ngữ nghiệp vụ cụ thể. 
+IConfig
+→ "App phải được cấu hình thế nào?"
 
----
+IStorage
+→ "App cần nhớ dữ liệu gì?"
 
-## 4. Cơ chế Service Injection cho Runtime (Inversion of Control)
+Runtime Injection
+→ "App muốn dùng implementation nào?"
 
-*   **Lightweight DI / Registration**: Áp dụng mô hình đăng ký dịch vụ thông qua `RuntimeBuilder` hoặc `RuntimeContext`. 
-*   **Flexible Initialization Flow**: Cho phép application chủ động định nghĩa và đăng ký các service tùy chỉnh trước khi khởi động runtime.
-*   **Safe Fallback**: Tự động sử dụng các default service nội bộ làm phương án dự phòng an toàn trong trường hợp application không cung cấp custom implementation.
-EOF
+
+IDiagnostics nên là generic framework service:
+
+Framework
+   ↓
+IDiagnostics
+   ├── Status
+   ├── Health
+   ├── Metrics
+   ├── Warnings
+   └── Errors
+IConfig
+Thêm write contract:
+setString()
+setInt()
+setBool()
+setDouble()
+Không bắt IConfig tự lo persistence.
+
+IStorage
+Giữ interface key/value generic.
+Thêm implementation persistent generic.
+InMemoryStorage vẫn giữ cho test/example.
+
+IDiagnostics
+Cho phép app/module/plugin đăng ký:
+status
+health
+metrics
+warnings
+errors
+Không thêm field kiểu deviceCount.
+
+tóm lại 
+FW cần sửa:
+
+Runtime       → service injection
+IConfig       → write API
+IStorage      → persistent implementation
+IDiagnostics  → extensibility
+Tests/Docs    → cập nhật theo API mới
+
+ICommandBus   → chỉ document lifetime, chưa cần đổi API
