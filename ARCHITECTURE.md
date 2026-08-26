@@ -27,7 +27,7 @@ Services
 Core
 ```
 
-`framework_core` không biết Qt, runtime, plugin, database hay network. `framework_services` phụ thuộc core. `framework_runtime` phụ thuộc services và plugin SDK. Qt6 chỉ xuất hiện ở `apps/qt6_app`.
+`framework_core` không biết Qt, runtime, plugin, database hay network. `framework_services` phụ thuộc core. `framework_runtime` chỉ phụ thuộc các service contracts và plugin SDK; nó không phụ thuộc các default service implementations. Qt6 chỉ xuất hiện ở `apps/qt6_app`.
 
 ## 3. Các target chính
 
@@ -51,6 +51,23 @@ Core
 
 Application composition root tạo và chọn service implementations rồi đưa chúng vào `RuntimeContext`. Các reference trong context là non-owning; mọi service phải sống lâu hơn runtime, module và plugin sử dụng chúng.
 
+#### IConfig read/write
+
+`IConfig` là typed read/write contract cho `string`, `int64_t`, `bool` và `double`. Contract chỉ mô tả việc đọc/ghi cấu hình:
+
+- key rỗng trả `InvalidArgument`;
+- key không tồn tại trả `NotFound`;
+- đọc sai kiểu trả lỗi, không conversion ngầm;
+- `set*()` ghi đè và có hiệu lực ở lần đọc tiếp theo.
+
+`IConfig` không chứa file path, format, database handle hoặc persistence policy. `InMemoryConfig` phù hợp cho test/example; `FileConfig` là implementation persistent do composition root chọn và tự chịu trách nhiệm load/persist.
+
+#### IStorage generic và persistent
+
+`IStorage` chỉ là key/value contract với `std::string`. Nó không biết device, sensor, event hay schema domain. `InMemoryStorage` là volatile implementation; `FileStorage` là local persistent implementation. Application chọn backend và truyền `IStorage&` qua `RuntimeContext`.
+
+`FileStorage::load()` được gọi explicit tại composition root. `set()` ghi đồng bộ qua temporary file và replacement, chỉ trả success sau khi persist hoàn tất; lỗi persistence được trả về `core::Result`. Implementation dùng mutex để bảo vệ map và công bố thread-safe cho `get()`/`set()`.
+
 ### Runtime
 
 `Runtime` chỉ giữ non-owning service references và sở hữu `ModuleManager`. Nó điều phối:
@@ -60,6 +77,8 @@ initialize -> start -> stop
 ```
 
 `Runtime::stop()` dừng module rồi unload toàn bộ plugin. Runtime có thể được start/stop lại; module built-in giữ trong manager ở state `Stopped`, còn plugin dynamic được load lại sau mỗi stop.
+
+Runtime không tạo, sở hữu hoặc tự chọn service implementation. Application phải tạo service trước, truyền `RuntimeContext`, sau đó giữ các service sống cho đến khi `Runtime::stop()` hoàn tất.
 
 ### Modules
 
@@ -122,7 +141,7 @@ Plugin SDK nằm ở `plugins/plugin_sdk/plugin_api.h`. Plugin phải export:
 
 ```cpp
 extern "C" const PluginDescriptor* get_plugin_descriptor() noexcept;
-extern "C" runtime::IModule* create_plugin_module() noexcept;
+extern "C" runtime::IModule* create_plugin_module(const runtime::RuntimeContext*) noexcept;
 extern "C" void destroy_plugin_module(runtime::IModule*) noexcept;
 ```
 
@@ -157,7 +176,7 @@ create and own service implementations
         -> create RuntimeContext with non-owning references
         -> create Runtime
     -> register built-in modules
-    -> PluginLoader::load(path)
+        -> PluginLoader::load(path, runtime.context())
     -> ModuleManager::registerPlugin(...)
     -> Runtime::initialize()
     -> Runtime::start()
@@ -185,6 +204,8 @@ Không dùng exception làm flow control cho registration hoặc lifecycle.
 
 - đăng ký `ExampleModule` built-in;
 - load `framework_example_plugin` từ `plugins` cạnh executable;
+- chọn `FileConfig` và `FileStorage` tại composition root của adapter;
+- gọi `load()` trước khi runtime sử dụng persistent services;
 - hiển thị state runtime, module và plugin;
 - chứng minh chu kỳ Start -> Stop -> Start và Reset.
 
@@ -211,8 +232,9 @@ Khi thêm application:
 1. Đặt composition và adapter trong tầng application, không đưa Qt/network/database vào core.
 2. Đăng ký module ở composition root.
 3. Dùng service interface thay vì phụ thuộc implementation mặc định.
-4. Gán ID module ổn định và khai báo dependency explicit.
-5. Với plugin, dùng đúng SDK, export đủ symbol và giữ allocator boundary qua destroy function.
-6. Stop/unsubscribe/cancel mọi callback hoặc task trước khi unload plugin.
+4. Chọn `InMemoryStorage` cho test/example hoặc `FileStorage`/adapter khác cho deployment tại composition root.
+5. Gán ID module ổn định và khai báo dependency explicit.
+6. Với plugin, dùng đúng SDK, truyền `RuntimeContext` lúc tạo module và giữ allocator boundary qua destroy function.
+7. Stop/unsubscribe/cancel mọi callback hoặc task trước khi unload plugin và destroy service.
 
 Khi thêm framework capability dùng chung, cập nhật contract tương ứng và kiểm tra ảnh hưởng tới lifecycle, ownership và ABI trước khi mở rộng adapter.

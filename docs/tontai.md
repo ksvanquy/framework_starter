@@ -81,7 +81,7 @@ ICommandBus   → chỉ document lifetime, chưa cần đổi API
    metrics
 
 
-## Kế hoạch triển khai Runtime Service Injection
+## Runtime Service Injection đã triển khai
 
 ### Mục tiêu
 
@@ -131,9 +131,9 @@ Quy ước ownership:
 - application phải stop/unload runtime trước khi destroy service;
 - không dùng global singleton để tìm service.
 
-### 2. Refactor Runtime
+### 2. Contract Runtime
 
-Thay constructor mặc định:
+Runtime không còn constructor mặc định tự tạo service. API hiện tại nhận context:
 
 ```cpp
 Runtime();
@@ -166,9 +166,9 @@ Xóa khỏi runtime toàn bộ member concrete:
 
 `runtime/src/runtime.cpp` không được include `services/default_services.h` hoặc trực tiếp gọi constructor của các implementation trên. `Runtime` chỉ dùng `context.logger` để ghi lifecycle log và truyền logger vào `ModuleManager`.
 
-### 3. Cập nhật Application và composition root
+### 3. Application và composition root
 
-`Application` không được tạo `Runtime` bằng constructor ngầm định. Chọn một trong hai API sau, ưu tiên phương án nhận `RuntimeContext`:
+`Application` nhận `RuntimeContext`; composition root tạo service trước runtime:
 
 ```cpp
 explicit Application(RuntimeContext services);
@@ -195,15 +195,9 @@ runtime::Runtime runtime(context);
 
 Default services vẫn được giữ trong `framework_services` để làm implementation mẫu/test. Chúng không được chuyển ngược vào `framework_runtime`.
 
-### 4. Bổ sung injection cho plugin
+### 4. Plugin context injection
 
-Factory hiện tại không nhận dependency:
-
-```cpp
-IModule* create_plugin_module() noexcept;
-```
-
-Đổi contract thành:
+Factory hiện tại nhận context:
 
 ```cpp
 IModule* create_plugin_module(const RuntimeContext* context) noexcept;
@@ -220,9 +214,9 @@ Yêu cầu lifetime:
 
 Nếu cần ABI ổn định giữa compiler/toolchain khác nhau, tạo một plugin service table dùng opaque handles/function pointers ở giai đoạn sau. Không đưa thay đổi ABI đó vào cùng đợt refactor đầu tiên nếu chưa cần thiết.
 
-### 5. Test bắt buộc
+### 5. Coverage cần duy trì
 
-Tạo test target cho `framework_runtime` và kiểm tra:
+Các test/validation của `framework_runtime` cần tiếp tục kiểm tra:
 
 1. `Runtime` khởi tạo bằng custom/fake implementations.
 2. Lifecycle log đi qua `ILogger` được inject.
@@ -233,27 +227,20 @@ Tạo test target cho `framework_runtime` và kiểm tra:
 7. Plugin được stop/unload trước khi service dependencies bị hủy.
 8. Runtime vẫn xử lý đúng lifecycle idempotency và lỗi module hiện tại.
 
-### 6. Cập nhật CMake và tài liệu
+### 6. Tài liệu và build contract
 
 - Bảo đảm `framework_runtime` chỉ phụ thuộc các service interfaces cần thiết.
 - Không thêm dependency từ runtime tới default service implementations.
-- Thêm test vào build mặc định khi có test infrastructure.
+- Giữ test trong build mặc định khi test infrastructure được bổ sung.
 - Cập nhật `ARCHITECTURE.md` để mô tả `Runtime` không sở hữu services.
 - Cập nhật `README.md` với ví dụ composition root mới.
 - Cập nhật plugin SDK documentation với factory signature và lifetime contract.
 - Cập nhật tài liệu ứng dụng sau khi API mới được chốt.
 - Bỏ qua `apps/qt6_app` trong đợt triển khai đầu tiên; chỉ xử lý adapter đó ở migration phase riêng nếu cần.
 
-### Thứ tự thực hiện
+### Trạng thái triển khai
 
-1. Chốt `RuntimeContext` và ownership/lifetime contract.
-2. Đổi constructor `Runtime` và loại bỏ concrete services khỏi runtime.
-3. Sửa accessor, `ModuleManager` và `Application` theo API mới.
-4. Thêm composition root mẫu không phụ thuộc Qt6.
-5. Đổi plugin factory và `PluginLoader` sang context injection.
-6. Thêm test cho custom services, module và plugin injection.
-7. Cập nhật CMake, README, architecture và plugin documentation.
-8. Build với `BUILD_QT6=OFF` và chạy toàn bộ test.
+Các bước Runtime Service Injection ở trên đã được áp dụng. Khi mở rộng framework, chỉ thêm implementation ở composition root và giữ `framework_runtime` phụ thuộc contract.
 
 ### Tiêu chí hoàn tất
 
@@ -343,9 +330,9 @@ Giữ `InMemoryConfig` làm implementation mặc định cho test/example:
 
 Nên dùng một representation typed thống nhất thay vì chuyển mọi giá trị qua `std::string`, nhằm tránh mất độ chính xác và tránh conversion ngầm.
 
-### 4. Thêm implementation persistent riêng
+### 4. Persistent implementation
 
-Tạo implementation persistent generic ở tầng services hoặc adapter phù hợp, không sửa trách nhiệm của `IConfig`:
+Implementation persistent `FileConfig` nằm ở tầng services và không sửa trách nhiệm của `IConfig`:
 
 - application truyền storage/path/options vào constructor;
 - implementation load cấu hình theo format đã chọn;
@@ -354,7 +341,7 @@ Tạo implementation persistent generic ở tầng services hoặc adapter phù 
 - ghi dữ liệu phải bảo đảm không tạo file cấu hình bị hỏng khi tiến trình dừng giữa chừng;
 - không làm thay đổi API của `Runtime`.
 
-Đợt đầu có thể triển khai `FileConfig` tối giản cho key/value typed. Database hoặc remote config chỉ thêm khi có use case cụ thể, không đưa dependency nặng vào `framework_services` mặc định.
+Workspace hiện có `FileConfig` tối giản cho key/value typed. Database hoặc remote config chỉ thêm khi có use case cụ thể, không đưa dependency nặng vào `framework_services` mặc định.
 
 ### 5. Migration call sites
 
@@ -366,7 +353,7 @@ Rà soát module, plugin và application để:
 4. không tự ghi file/database từ module khi đã có `IConfig` implementation;
 5. để composition root chọn `InMemoryConfig` cho test/example và persistent config cho production.
 
-Kết quả rà soát hiện tại: workspace chưa có call site nào đọc hoặc ghi `IConfig`; các kết quả tìm được chỉ là contract và implementation của `InMemoryConfig`/`FileConfig`. Vì vậy chưa cần sửa module/plugin theo API mới và không thêm cấu hình nghiệp vụ giả vào ví dụ. Khi feature đầu tiên sử dụng config được thêm vào, call site phải dùng typed getter/setter và xử lý lỗi theo contract bên trên.
+Kết quả rà soát hiện tại: Qt composition root sử dụng `FileConfig`, gọi `load()`, rồi dùng `getBool()`/`setBool()` cho các cờ enable module/plugin. Module/plugin mới vẫn phải phụ thuộc `IConfig`, không phụ thuộc trực tiếp `FileConfig`, và phải xử lý lỗi theo contract bên trên.
 
 Các key cấu hình nên được đặt tên ổn định, document namespace và validate ở application/module, ví dụ:
 
@@ -393,23 +380,17 @@ Tạo test contract dùng chung cho mọi `IConfig` implementation:
 
 ### 7. Cập nhật CMake và tài liệu
 
-- Cập nhật header/source `IConfig` và `InMemoryConfig`.
+- Duy trì header/source `IConfig`, `InMemoryConfig` và `FileConfig` trong các target phù hợp.
 - Đặt persistent implementation ở target riêng nếu cần dependency filesystem/database.
 - Không link persistence dependency vào `framework_runtime`.
 - Cập nhật `README.md` với ví dụ chọn `InMemoryConfig` hoặc persistent config tại composition root.
 - Cập nhật `ARCHITECTURE.md` để phân biệt config contract và persistence implementation.
 - Document typed API, error contract, thread-safety và persistence policy.
-- Cập nhật `docs/tontai.md` sau khi implementation đầu tiên hoàn tất.
+- Cập nhật tài liệu khi contract hoặc persistence policy thay đổi.
 
-### Thứ tự thực hiện
+### Trạng thái triển khai
 
-1. Chốt typed API và error contract của `IConfig`.
-2. Implement getter/setter trong `InMemoryConfig`.
-3. Viết contract tests dùng chung cho các implementation.
-4. Rà soát và migrate module/application call sites.
-5. Thêm persistent implementation độc lập với `IConfig` contract.
-6. Thêm persistence tests và kiểm tra lỗi I/O/parse.
-7. Cập nhật composition root, CMake và tài liệu.
+Typed API, `InMemoryConfig`, `FileConfig` và Qt composition call sites đã được cập nhật. Test contract dùng chung và các test lỗi I/O vẫn là phần coverage cần bổ sung khi test infrastructure được mở rộng.
 
 ### Tiêu chí hoàn tất
 
@@ -474,9 +455,9 @@ Nếu cần thao tác xóa, list key hoặc batch transaction trong tương lai,
 - dữ liệu mất khi object bị hủy, đây là behavior được document rõ;
 - không để runtime tự tạo implementation này; composition root quyết định có dùng nó hay không.
 
-### 3. Thêm persistent implementation generic
+### 3. Persistent implementation generic
 
-Tạo implementation riêng, ví dụ `FileStorage`, implement `IStorage` mà không thay đổi contract:
+`FileStorage` là implementation riêng của `IStorage`, không thay đổi contract:
 
 ```text
 IStorage
@@ -486,7 +467,7 @@ IStorage
    '-- RemoteStorage    -> remote persistence adapter
 ```
 
-Đợt đầu nên triển khai `FileStorage` tối giản:
+`FileStorage` hiện là implementation persistent generic tối giản:
 
 - nhận path/options từ constructor;
 - tự tạo parent directory nếu cần;
@@ -556,9 +537,9 @@ Module sở hữu schema payload, schema version và compatibility/migration pol
 
 Namespace không được lấy từ file path hoặc implementation cụ thể; cùng một key phải có ý nghĩa như nhau khi application đổi giữa `InMemoryStorage` và `FileStorage`.
 
-### 7. Test bắt buộc
+### 7. Coverage cần duy trì
 
-Tạo storage contract tests dùng chung cho mọi implementation:
+Storage contract tests dùng chung cho mọi implementation cần bao phủ:
 
 1. Set/get value thành công.
 2. Ghi đè key trả về giá trị mới.
@@ -573,25 +554,19 @@ Tạo storage contract tests dùng chung cho mọi implementation:
 11. Ghi thất bại không làm mất bản snapshot hợp lệ trước đó.
 12. Concurrent behavior được kiểm tra nếu implementation công bố thread-safe.
 
-### 8. Cập nhật CMake và tài liệu
+### 8. CMake và tài liệu
 
 - Giữ `IStorage` trong service contract, không thêm dependency persistence vào `framework_runtime`.
 - Giữ `InMemoryStorage` trong default services.
 - Đặt `FileStorage` ở target riêng nếu cần dependency hoặc policy riêng.
-- Cập nhật composition root mẫu để cho thấy cách chọn backend.
+- Duy trì composition root mẫu để cho thấy cách chọn backend.
 - Cập nhật `README.md` và `ARCHITECTURE.md` về volatile/persistent behavior.
 - Document format, atomic write, durability, error và thread-safety của `FileStorage`.
 - Không đưa database/network dependency vào framework mặc định nếu chưa có use case.
 
-### Thứ tự thực hiện
+### Trạng thái triển khai
 
-1. Chốt error, durability và thread-safety contract của `IStorage`.
-2. Bổ sung validation nhất quán cho `InMemoryStorage`.
-3. Viết storage contract tests dùng chung.
-4. Implement `FileStorage` generic và atomic write.
-5. Thêm persistence/error/lifetime tests.
-6. Migrate composition root để chọn `InMemoryStorage` hoặc `FileStorage`.
-7. Cập nhật CMake và tài liệu.
+`IStorage`, `InMemoryStorage`, `FileStorage`, composition root và tài liệu contract đã được triển khai. Storage contract tests và test lỗi persistence vẫn là coverage cần bổ sung.
 
 ### Tiêu chí hoàn tất
 

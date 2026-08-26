@@ -101,9 +101,12 @@ Plugin export ba symbol C ABI:
 
 ```cpp
 extern "C" const PluginDescriptor* get_plugin_descriptor() noexcept;
-extern "C" runtime::IModule* create_plugin_module() noexcept;
+extern "C" runtime::IModule* create_plugin_module(
+    const runtime::RuntimeContext* context) noexcept;
 extern "C" void destroy_plugin_module(runtime::IModule*) noexcept;
 ```
+
+`PluginLoader::load(path, runtime.context())` truyền `RuntimeContext` vào factory; plugin chỉ được sử dụng context trong lifetime của module.
 
 `PluginLoader` kiểm tra library, symbol, descriptor, API/ABI version, dependency metadata và module ID trước khi trả `LoadedPlugin`. `ModuleManager` giữ module proxy, destroy function và library handle cho đến khi unload.
 
