@@ -1,12 +1,3 @@
-TASK: TẠO APPLICATION MỚI "Framework IoT Control Center"
-
-Repository:
-https://github.com/ksvanquy/framework_starter
-
-============================================================
-MỤC TIÊU
-============================================================
-
 Tạo một APPLICATION MỚI độc lập:
 
     apps/iot_control_center/
