@@ -12,7 +12,8 @@ FRAMEWORK_PLUGIN_EXPORT const PluginDescriptor* get_plugin_descriptor() noexcept
     return &descriptor;
 }
 
-FRAMEWORK_PLUGIN_EXPORT framework::runtime::IModule* create_plugin_module() noexcept {
+FRAMEWORK_PLUGIN_EXPORT framework::runtime::IModule* create_plugin_module(
+    const framework::runtime::RuntimeContext*) noexcept {
     return nullptr;
 }
 

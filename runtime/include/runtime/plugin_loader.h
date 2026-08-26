@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/result.h"
+#include "runtime/context.h"
 #include "runtime/imodule.h"
 #include "plugin_api.h"
 
@@ -40,7 +41,8 @@ public:
     static constexpr uint32_t CurrentApiVersion = FRAMEWORK_PLUGIN_API_VERSION;
     static constexpr uint32_t CurrentAbiVersion = FRAMEWORK_PLUGIN_ABI_VERSION;
 
-    core::Result<LoadedPlugin> load(const std::filesystem::path& path) const;
+    core::Result<LoadedPlugin> load(const std::filesystem::path& path,
+                                    RuntimeContext& context) const;
 };
 
 } // namespace framework::runtime

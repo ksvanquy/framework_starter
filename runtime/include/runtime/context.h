@@ -10,6 +10,9 @@
 
 namespace framework::runtime {
 
+// RuntimeContext is a non-owning dependency bundle supplied by the composition root.
+// The composition root owns the referenced services and must destroy them only after
+// Runtime has stopped and unloaded all modules and plugins using this context.
 struct RuntimeContext {
     services::ILogger& logger;
     services::IEventBus& eventBus;

@@ -1,33 +1,24 @@
 #include "runtime/runtime.h"
 
 #include "runtime/module_manager.h"
-#include "services/default_services.h"
 
-#include <iostream>
 #include <utility>
 
 namespace framework::runtime {
 
 class Runtime::Impl {
 public:
-    Impl()
-        : logger(std::clog),
-          moduleManager(logger) {}
+    explicit Impl(RuntimeContext services)
+        : context(services),
+          moduleManager(context.logger) {}
 
-    services::ConsoleLogger logger;
-    services::InMemoryConfig config;
-    services::InMemoryEventBus eventBus;
-    services::InMemoryCommandBus commandBus;
-    services::ThreadScheduler scheduler;
-    services::InMemoryStorage storage;
-    services::BasicDiagnostics diagnostics;
-    RuntimeContext context{logger, eventBus, config, commandBus, scheduler, storage, diagnostics};
+    RuntimeContext context;
     ModuleManager moduleManager;
     bool initialized = false;
     bool started = false;
 };
 
-Runtime::Runtime() : impl_(std::make_unique<Impl>()) {}
+Runtime::Runtime(RuntimeContext services) : impl_(std::make_unique<Impl>(services)) {}
 
 Runtime::~Runtime() {
     stop();
@@ -39,11 +30,11 @@ core::Result<void> Runtime::initialize() {
     }
     auto result = impl_->moduleManager.initializeAll();
     if (!result) {
-        impl_->logger.log(services::LogLevel::Error, "Runtime", "Runtime initialization failed");
+        impl_->context.logger.log(services::LogLevel::Error, "Runtime", "Runtime initialization failed");
         return result;
     }
     impl_->initialized = true;
-    impl_->logger.log(services::LogLevel::Info, "Runtime", "Runtime initialized");
+    impl_->context.logger.log(services::LogLevel::Info, "Runtime", "Runtime initialized");
     return {};
 }
 
@@ -56,11 +47,11 @@ core::Result<void> Runtime::start() {
     }
     auto result = impl_->moduleManager.startAll();
     if (!result) {
-        impl_->logger.log(services::LogLevel::Error, "Runtime", "Runtime start failed");
+        impl_->context.logger.log(services::LogLevel::Error, "Runtime", "Runtime start failed");
         return result;
     }
     impl_->started = true;
-    impl_->logger.log(services::LogLevel::Info, "Runtime", "Runtime started");
+    impl_->context.logger.log(services::LogLevel::Info, "Runtime", "Runtime started");
     return {};
 }
 
@@ -81,23 +72,23 @@ core::Result<void> Runtime::stop() {
     impl_->started = false;
     impl_->initialized = false;
     if (!result) {
-        impl_->logger.log(services::LogLevel::Error, "Runtime", "Runtime stop failed");
+        impl_->context.logger.log(services::LogLevel::Error, "Runtime", "Runtime stop failed");
         return result;
     }
     if (!unloadResult) {
-        impl_->logger.log(services::LogLevel::Error, "Runtime", "Plugin unload failed");
+        impl_->context.logger.log(services::LogLevel::Error, "Runtime", "Plugin unload failed");
         return unloadResult;
     }
-    impl_->logger.log(services::LogLevel::Info, "Runtime", "Runtime stopped");
+    impl_->context.logger.log(services::LogLevel::Info, "Runtime", "Runtime stopped");
     return {};
 }
 
 services::ILogger& Runtime::logger() const {
-    return impl_->logger;
+    return impl_->context.logger;
 }
 
 services::IEventBus& Runtime::eventBus() const {
-    return impl_->eventBus;
+    return impl_->context.eventBus;
 }
 
 RuntimeContext& Runtime::context() {

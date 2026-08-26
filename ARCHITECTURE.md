@@ -47,11 +47,13 @@ Core
 - `IStorage`;
 - `IDiagnostics`.
 
-Runtime tạo các service mặc định và đưa chúng vào `RuntimeContext`. Các reference trong context là non-owning; runtime phải sống lâu hơn mọi module dùng context.
+`IStorage` là key/value generic. Application hoặc module sở hữu namespace, serialization và schema payload; `InMemoryStorage` và `FileStorage` chỉ lưu opaque string values.
+
+Application composition root tạo và chọn service implementations rồi đưa chúng vào `RuntimeContext`. Các reference trong context là non-owning; mọi service phải sống lâu hơn runtime, module và plugin sử dụng chúng.
 
 ### Runtime
 
-`Runtime` sở hữu service instances và `ModuleManager`. Nó điều phối:
+`Runtime` chỉ giữ non-owning service references và sở hữu `ModuleManager`. Nó điều phối:
 
 ```text
 initialize -> start -> stop
@@ -150,7 +152,10 @@ Application chọn path và thời điểm load. Framework không tự động s
 Application composition điển hình:
 
 ```text
-create Runtime
+create and own service implementations
+        -> choose InMemoryStorage or FileStorage
+        -> create RuntimeContext with non-owning references
+        -> create Runtime
     -> register built-in modules
     -> PluginLoader::load(path)
     -> ModuleManager::registerPlugin(...)

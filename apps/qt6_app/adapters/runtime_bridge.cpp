@@ -6,15 +6,80 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QStandardPaths>
 
 #include <filesystem>
+#include <iostream>
 #include <utility>
 
 namespace framework::ui {
+namespace {
+
+std::filesystem::path configPath() {
+    QString directory = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    if (directory.isEmpty()) {
+        directory = QCoreApplication::applicationDirPath();
+    }
+#if defined(Q_OS_WIN)
+    return std::filesystem::path((directory + "/framework.conf").toStdWString());
+#else
+    return std::filesystem::path((directory + "/framework.conf").toStdString());
+#endif
+}
+
+std::filesystem::path storagePath() {
+    QString directory = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (directory.isEmpty()) {
+        directory = QCoreApplication::applicationDirPath();
+    }
+#if defined(Q_OS_WIN)
+    return std::filesystem::path((directory + "/framework.storage").toStdWString());
+#else
+    return std::filesystem::path((directory + "/framework.storage").toStdString());
+#endif
+}
+
+} // namespace
 
 RuntimeBridge::RuntimeBridge(QObject* parent)
         : QObject(parent),
-            runtime_(std::make_unique<runtime::Runtime>()) {}
+            logger_(std::clog),
+            config_(configPath()),
+            storage_(storagePath()),
+            runtime_(std::make_unique<runtime::Runtime>(runtime::RuntimeContext{
+                logger_, eventBus_, config_, commandBus_, scheduler_, storage_, diagnostics_})) {
+    const auto loadResult = config_.load();
+    if (!loadResult) {
+        setError(QString::fromStdString(loadResult.error().message()));
+        return;
+    }
+
+    const auto storageLoadResult = storage_.load();
+    if (!storageLoadResult) {
+        setError(QString::fromStdString(storageLoadResult.error().message()));
+        return;
+    }
+
+    const auto ensureDefault = [this](const std::string& key) -> bool {
+        const auto value = config_.getBool(key);
+        if (value) {
+            return true;
+        }
+        if (value.error().code() != core::ErrorCode::NotFound) {
+            setError(QString::fromStdString(value.error().message()));
+            return false;
+        }
+        const auto setResult = config_.setBool(key, true);
+        if (!setResult) {
+            setError(QString::fromStdString(setResult.error().message()));
+            return false;
+        }
+        return true;
+    };
+
+    configReady_ = ensureDefault("runtime.example_module.enabled") &&
+                   ensureDefault("runtime.example_plugin.enabled");
+}
 
 RuntimeBridge::~RuntimeBridge() {
         runtime_->stop();
@@ -51,7 +116,22 @@ bool RuntimeBridge::pluginLoaded() const {
 }
 
 void RuntimeBridge::start() {
-    if (!moduleRegistered_) {
+    if (!configReady_) {
+        return;
+    }
+
+    const auto moduleEnabled = config_.getBool("runtime.example_module.enabled");
+    if (!moduleEnabled) {
+        setError(QString::fromStdString(moduleEnabled.error().message()));
+        return;
+    }
+    const auto pluginEnabled = config_.getBool("runtime.example_plugin.enabled");
+    if (!pluginEnabled) {
+        setError(QString::fromStdString(pluginEnabled.error().message()));
+        return;
+    }
+
+    if (moduleEnabled.value() && !moduleRegistered_) {
         auto result = runtime_->moduleManager().registerModule(
             std::make_unique<modules::ExampleModule>(runtime_->logger(), runtime_->eventBus()));
         if (!result) {
@@ -63,7 +143,7 @@ void RuntimeBridge::start() {
         emit exampleModuleStateChanged();
     }
 
-    if (!pluginLoaded_) {
+    if (pluginEnabled.value() && !pluginLoaded_) {
         const QDir pluginDirectory(QCoreApplication::applicationDirPath() + "/plugins");
         const QFileInfoList candidates = pluginDirectory.entryInfoList(
             {QStringLiteral("framework_example_plugin.*")}, QDir::Files, QDir::Name);
@@ -78,7 +158,7 @@ void RuntimeBridge::start() {
 #else
         const std::filesystem::path pluginPath(candidates.first().absoluteFilePath().toStdString());
 #endif
-        auto pluginResult = runtime::PluginLoader{}.load(pluginPath);
+        auto pluginResult = runtime::PluginLoader{}.load(pluginPath, runtime_->context());
         if (!pluginResult) {
             setError(QString::fromStdString(pluginResult.error().message()));
             return;
@@ -124,7 +204,8 @@ void RuntimeBridge::stop() {
 
 void RuntimeBridge::reset() {
     runtime_->stop();
-    runtime_ = std::make_unique<runtime::Runtime>();
+    runtime_ = std::make_unique<runtime::Runtime>(runtime::RuntimeContext{
+        logger_, eventBus_, config_, commandBus_, scheduler_, storage_, diagnostics_});
     moduleRegistered_ = false;
     pluginLoaded_ = false;
     clearError();

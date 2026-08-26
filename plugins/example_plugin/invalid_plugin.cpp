@@ -5,6 +5,8 @@ namespace {
 
 class PluginModule final : public framework::runtime::IModule {
 public:
+    explicit PluginModule(const framework::runtime::RuntimeContext*) {}
+
     const framework::runtime::ModuleInfo& info() const override { return info_; }
     framework::runtime::ModuleState state() const override { return state_; }
     framework::core::Result<void> initialize() override {

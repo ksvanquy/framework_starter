@@ -1,6 +1,10 @@
 add_library(framework_services STATIC
     src/default_services.cpp
+    src/file_config.cpp
+    src/file_storage.cpp
     include/services/default_services.h
+    include/services/file_config.h
+    include/services/file_storage.h
     include/services/ilogger.h
     include/services/ievent_bus.h
     include/services/iconfig.h

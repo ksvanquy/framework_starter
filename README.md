@@ -46,24 +46,39 @@ Tùy chọn chính:
 
 Application thường làm composition root:
 
-1. Tạo `Runtime`.
-2. Đăng ký built-in module bằng `registerModule(...)`.
-3. Load plugin bằng `PluginLoader::load(...)`, sau đó đăng ký bằng `registerPlugin(...)`.
-4. Gọi `initialize()`, `start()`, chạy application loop, rồi gọi `stop()`.
+1. Chọn và tạo các service implementation.
+2. Tạo `RuntimeContext` từ các service đó.
+3. Đăng ký built-in module bằng `registerModule(...)`.
+4. Load plugin bằng `PluginLoader::load(...)`, sau đó đăng ký bằng `registerPlugin(...)`.
+5. Gọi `initialize()`, `start()`, chạy application loop, rồi gọi `stop()`.
 
 Ví dụ rút gọn:
 
 ```cpp
+#include "services/default_services.h"
+#include "services/file_storage.h"
 #include "runtime/plugin_loader.h"
 #include "runtime/runtime.h"
 
 int main() {
-    framework::runtime::Runtime runtime;
+    using namespace framework;
+
+    services::ConsoleLogger logger(std::clog);
+    services::InMemoryConfig config;
+    services::InMemoryEventBus eventBus;
+    services::InMemoryCommandBus commandBus;
+    services::ThreadScheduler scheduler;
+    services::InMemoryStorage storage; // Use FileStorage for local persistence.
+    services::BasicDiagnostics diagnostics;
+
+    runtime::RuntimeContext context{
+        logger, eventBus, config, commandBus, scheduler, storage, diagnostics};
+    runtime::Runtime runtime(context);
 
     // Register application-owned built-in modules here.
     // runtime.moduleManager().registerModule(...);
 
-    auto plugin = framework::runtime::PluginLoader{}.load("plugins/my_plugin.dll");
+    auto plugin = runtime::PluginLoader{}.load("plugins/my_plugin.dll", runtime.context());
     if (!plugin) return 1;
     if (!runtime.moduleManager().registerPlugin(std::move(plugin.value()))) return 1;
 

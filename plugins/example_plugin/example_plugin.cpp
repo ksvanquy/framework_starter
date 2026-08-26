@@ -1,10 +1,14 @@
 #include "plugin_api.h"
+#include "runtime/context.h"
 #include "runtime/imodule.h"
 
 namespace {
 
 class PluginModule final : public framework::runtime::IModule {
 public:
+    explicit PluginModule(const framework::runtime::RuntimeContext* context)
+        : logger_(context->logger) {}
+
     const framework::runtime::ModuleInfo& info() const override { return info_; }
     framework::runtime::ModuleState state() const override { return state_; }
 
@@ -26,6 +30,7 @@ public:
 private:
     framework::runtime::ModuleInfo info_{"example.plugin", "Example plugin", "1.0.0", {}};
     framework::runtime::ModuleState state_ = framework::runtime::ModuleState::Discovered;
+    framework::services::ILogger& logger_;
 };
 
 const PluginDescriptor descriptor{

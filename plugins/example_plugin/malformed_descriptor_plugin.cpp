@@ -55,7 +55,8 @@ FRAMEWORK_PLUGIN_EXPORT const PluginDescriptor* get_plugin_descriptor() noexcept
 #endif
 }
 
-FRAMEWORK_PLUGIN_EXPORT framework::runtime::IModule* create_plugin_module() noexcept {
+FRAMEWORK_PLUGIN_EXPORT framework::runtime::IModule* create_plugin_module(
+    const framework::runtime::RuntimeContext*) noexcept {
     return new MalformedDescriptorModule();
 }
 

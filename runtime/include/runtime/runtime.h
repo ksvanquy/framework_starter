@@ -11,7 +11,7 @@ class ModuleManager;
 
 class Runtime {
 public:
-    Runtime();
+    explicit Runtime(RuntimeContext services);
     ~Runtime();
 
     // Lifecycle: initialize -> start -> stop. Each operation is idempotent where applicable.

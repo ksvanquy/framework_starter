@@ -17,6 +17,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 namespace framework::services {
@@ -34,11 +35,18 @@ private:
 class InMemoryConfig final : public IConfig {
 public:
     core::Result<std::string> getString(const std::string& key) const override;
-    core::Result<void> setString(std::string key, std::string value);
+    core::Result<int64_t> getInt(const std::string& key) const override;
+    core::Result<bool> getBool(const std::string& key) const override;
+    core::Result<double> getDouble(const std::string& key) const override;
+
+    core::Result<void> setString(std::string key, std::string value) override;
+    core::Result<void> setInt(std::string key, int64_t value) override;
+    core::Result<void> setBool(std::string key, bool value) override;
+    core::Result<void> setDouble(std::string key, double value) override;
 
 private:
     mutable std::mutex mutex_;
-    std::unordered_map<std::string, std::string> values_;
+    std::unordered_map<std::string, std::variant<std::string, int64_t, bool, double>> values_;
 };
 
 class InMemoryEventBus final : public IEventBus {

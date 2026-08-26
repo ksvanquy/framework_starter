@@ -18,7 +18,7 @@ core::Result<LoadedPlugin> error(core::ErrorCode code, std::string message) {
 }
 
 using DescriptorFunction = const PluginDescriptor* (*)();
-using CreateFunction = IModule* (*)();
+using CreateFunction = IModule* (*)(const RuntimeContext*);
 using DestroyFunction = void (*)(IModule*);
 
 void closeLibrary(void* handle) {
@@ -81,7 +81,8 @@ void LoadedPlugin::reset() noexcept {
     library_.reset();
 }
 
-core::Result<LoadedPlugin> PluginLoader::load(const std::filesystem::path& path) const {
+core::Result<LoadedPlugin> PluginLoader::load(const std::filesystem::path& path,
+                                              RuntimeContext& context) const {
 #if defined(_WIN32)
     void* handle = static_cast<void*>(LoadLibraryW(path.wstring().c_str()));
 #else
@@ -130,7 +131,7 @@ core::Result<LoadedPlugin> PluginLoader::load(const std::filesystem::path& path)
         }
     }
 
-    IModule* module = createFunction();
+    IModule* module = createFunction(&context);
     if (module == nullptr) {
         return error(core::ErrorCode::PluginLoadFailed, "Plugin module creation failed: " + path.string());
     }

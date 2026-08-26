@@ -45,12 +45,67 @@ void ConsoleLogger::log(LogLevel level, std::string_view category, std::string_v
 }
 
 core::Result<std::string> InMemoryConfig::getString(const std::string& key) const {
+    if (key.empty()) {
+        return makeError(core::ErrorCode::InvalidArgument, "Configuration key is empty");
+    }
     std::lock_guard lock(mutex_);
     const auto found = values_.find(key);
     if (found == values_.end()) {
         return makeError(core::ErrorCode::NotFound, "Configuration key not found: " + key);
     }
-    return found->second;
+    const auto value = std::get_if<std::string>(&found->second);
+    if (value == nullptr) {
+        return makeError(core::ErrorCode::InvalidArgument, "Configuration value is not a string: " + key);
+    }
+    return *value;
+}
+
+core::Result<int64_t> InMemoryConfig::getInt(const std::string& key) const {
+    if (key.empty()) {
+        return makeError(core::ErrorCode::InvalidArgument, "Configuration key is empty");
+    }
+    std::lock_guard lock(mutex_);
+    const auto found = values_.find(key);
+    if (found == values_.end()) {
+        return makeError(core::ErrorCode::NotFound, "Configuration key not found: " + key);
+    }
+    const auto value = std::get_if<int64_t>(&found->second);
+    if (value == nullptr) {
+        return makeError(core::ErrorCode::InvalidArgument, "Configuration value is not an integer: " + key);
+    }
+    return *value;
+}
+
+core::Result<bool> InMemoryConfig::getBool(const std::string& key) const {
+    if (key.empty()) {
+        return makeError(core::ErrorCode::InvalidArgument, "Configuration key is empty");
+    }
+    std::lock_guard lock(mutex_);
+    const auto found = values_.find(key);
+    if (found == values_.end()) {
+        return makeError(core::ErrorCode::NotFound, "Configuration key not found: " + key);
+    }
+    const auto value = std::get_if<bool>(&found->second);
+    if (value == nullptr) {
+        return makeError(core::ErrorCode::InvalidArgument, "Configuration value is not a boolean: " + key);
+    }
+    return *value;
+}
+
+core::Result<double> InMemoryConfig::getDouble(const std::string& key) const {
+    if (key.empty()) {
+        return makeError(core::ErrorCode::InvalidArgument, "Configuration key is empty");
+    }
+    std::lock_guard lock(mutex_);
+    const auto found = values_.find(key);
+    if (found == values_.end()) {
+        return makeError(core::ErrorCode::NotFound, "Configuration key not found: " + key);
+    }
+    const auto value = std::get_if<double>(&found->second);
+    if (value == nullptr) {
+        return makeError(core::ErrorCode::InvalidArgument, "Configuration value is not a double: " + key);
+    }
+    return *value;
 }
 
 core::Result<void> InMemoryConfig::setString(std::string key, std::string value) {
@@ -59,6 +114,33 @@ core::Result<void> InMemoryConfig::setString(std::string key, std::string value)
     }
     std::lock_guard lock(mutex_);
     values_[std::move(key)] = std::move(value);
+    return {};
+}
+
+core::Result<void> InMemoryConfig::setInt(std::string key, int64_t value) {
+    if (key.empty()) {
+        return makeError(core::ErrorCode::InvalidArgument, "Configuration key is empty");
+    }
+    std::lock_guard lock(mutex_);
+    values_[std::move(key)] = value;
+    return {};
+}
+
+core::Result<void> InMemoryConfig::setBool(std::string key, bool value) {
+    if (key.empty()) {
+        return makeError(core::ErrorCode::InvalidArgument, "Configuration key is empty");
+    }
+    std::lock_guard lock(mutex_);
+    values_[std::move(key)] = value;
+    return {};
+}
+
+core::Result<void> InMemoryConfig::setDouble(std::string key, double value) {
+    if (key.empty()) {
+        return makeError(core::ErrorCode::InvalidArgument, "Configuration key is empty");
+    }
+    std::lock_guard lock(mutex_);
+    values_[std::move(key)] = value;
     return {};
 }
 
@@ -158,6 +240,9 @@ core::Result<void> InMemoryStorage::set(const std::string& key, const std::strin
 }
 
 core::Result<std::string> InMemoryStorage::get(const std::string& key) {
+    if (key.empty()) {
+        return makeError(core::ErrorCode::InvalidArgument, "Storage key is empty");
+    }
     std::lock_guard lock(mutex_);
     const auto found = values_.find(key);
     if (found == values_.end()) {

@@ -6,6 +6,9 @@
 #include <QtQmlIntegration/qqmlintegration.h>
 
 #include "runtime/runtime.h"
+#include "services/default_services.h"
+#include "services/file_config.h"
+#include "services/file_storage.h"
 
 namespace framework::ui {
 
@@ -45,7 +48,15 @@ private:
     void setError(QString message);
     void setState(QString state);
 
+    services::ConsoleLogger logger_;
+    services::FileConfig config_;
+    services::InMemoryEventBus eventBus_;
+    services::InMemoryCommandBus commandBus_;
+    services::ThreadScheduler scheduler_;
+    services::FileStorage storage_;
+    services::BasicDiagnostics diagnostics_;
     std::unique_ptr<runtime::Runtime> runtime_;
+    bool configReady_ = false;
     bool moduleRegistered_ = false;
     bool pluginLoaded_ = false;
     QString state_ = QStringLiteral("Stopped");

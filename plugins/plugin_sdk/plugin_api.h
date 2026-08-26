@@ -9,6 +9,7 @@
 
 namespace framework::runtime {
 class IModule;
+struct RuntimeContext;
 }
 
 inline constexpr uint32_t FRAMEWORK_PLUGIN_API_VERSION = 1;
@@ -34,8 +35,9 @@ struct PluginDescriptor {
     FRAMEWORK_PLUGIN_EXPORT const PluginDescriptor* get_plugin_descriptor() noexcept { \
         return &DescriptorInstance; \
     } \
-    FRAMEWORK_PLUGIN_EXPORT framework::runtime::IModule* create_plugin_module() noexcept { \
-        return new ModuleClass(); \
+    FRAMEWORK_PLUGIN_EXPORT framework::runtime::IModule* create_plugin_module( \
+        const framework::runtime::RuntimeContext* context) noexcept { \
+        return new ModuleClass(context); \
     } \
     FRAMEWORK_PLUGIN_EXPORT void destroy_plugin_module(framework::runtime::IModule* module) noexcept { \
         delete module; \

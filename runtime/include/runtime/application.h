@@ -7,7 +7,7 @@ namespace framework::runtime {
 
 class Application {
 public:
-    Application() = default;
+    explicit Application(RuntimeContext services) : runtime_(services) {}
     virtual ~Application() = default;
 
     int exec(int argc, char* argv[]) {
