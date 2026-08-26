@@ -63,3 +63,28 @@ IDiagnostics  → extensibility
 Tests/Docs    → cập nhật theo API mới
 
 ICommandBus   → chỉ document lifetime, chưa cần đổi API
+
+
+1. Runtime Injection
+→ IoT chọn implementation muốn dùng.
+
+2. IConfig
+→ Lưu/đọc cấu hình:
+   AC target = 24°C
+   polling = 1s
+   automation enabled = true
+
+3. IStorage
+→ Lưu dữ liệu lâu dài:
+   device state
+   sensor history
+   events
+   automation rules
+
+4. IDiagnostics
+→ Theo dõi tình trạng app:
+   devices online/offline
+   scheduler health
+   plugin status
+   warnings/errors
+   metrics
